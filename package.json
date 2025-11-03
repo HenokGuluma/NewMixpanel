@@ -1,11 +1,13 @@
 {
   "name": "mixpanel-growth-simulator",
   "version": "1.0.0",
-  "description": "Realistic user growth simulator for Mixpanel",
+  "description": "Historical + Continuous growth simulator for Mixpanel",
   "main": "simulator.js",
   "scripts": {
-    "start": "node simulator.js --continuous",
-    "historical": "node simulator.js --historical"
+    "start": "node simulator.js",
+    "historical": "node simulator.js --historical-only",
+    "continuous": "node simulator.js --continuous-only",
+    "dev": "node simulator.js --debug"
   },
   "dependencies": {
     "axios": "^1.6.0",
