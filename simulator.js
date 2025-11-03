@@ -486,7 +486,7 @@ class ContinuousGrowthSimulator {
                 os_version: deviceInfo.os_version,
                 app_version: deviceInfo.app_version,
                 screen_resolution: deviceInfo.resolution,
-                first_seen: new Date(this.simulationStartDate.getTime() + Math.random() * 150 * 24 * 60 * 60 * 1000),
+                first_seen: new Date(this.historicalStartDate.getTime() + Math.random() * 150 * 24 * 60 * 60 * 1000),
                 profile_sent: false
             };
         }
