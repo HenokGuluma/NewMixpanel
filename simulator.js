@@ -7,8 +7,8 @@ const { v4: uuidv4 } = require('uuid');
 class EthiopianGrowthSimulator {
     constructor() {
         // Mixpanel configuration
-        this.token = '0472dce3084fadbdd7cd491949f1eef4';
-        this.apiSecret = '3e53ad3993347177f83ef5028345d904'; // REPLACE WITH YOUR ACTUAL API SECRET
+        this.token = 'bef3bcb436da7b0532dd2f053383e18a';
+        this.apiSecret = '570bbcba575fdd0839b47d45e0b2d51e'; // REPLACE WITH YOUR ACTUAL API SECRET
         this.baseURL = 'https://api.mixpanel.com';
         
         // FIXED: Simulation configuration for realistic growth
