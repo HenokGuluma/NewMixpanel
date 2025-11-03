@@ -14,7 +14,7 @@ class EthiopianGrowthSimulator {
         // FIXED: Simulation configuration for realistic growth
         this.users = new Map();
         this.totalEvents = 0;
-        this.simulationStartDate = new Date('2025-05-10');
+        this.simulationStartDate = new Date('2025-06-04');
         this.simulationEndDate = new Date('2025-10-31');
         this.targetUsers = 15000; // Target 15,000 total users
         this.targetOctoberDAU = 5000; // Target 5,000 daily active users by October
