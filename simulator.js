@@ -183,7 +183,7 @@ class ContinuousGrowthSimulator {
                     '$country': 'Ethiopia',
                     '$country_code': 'ET',
                     '$operating_system': 'Android',
-                    '$insert_id': distinct_id,
+                    '$insert_id': uniqueDistinctId,
                     '$device_model': user.device_model,
                     'Manufacturer': user.manufacturer,
                     '$os_version': user.os_version,
