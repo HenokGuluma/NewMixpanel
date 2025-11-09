@@ -7,8 +7,8 @@ const { v4: uuidv4 } = require('uuid');
 class ContinuousGrowthSimulator {
     constructor() {
         // Mixpanel configuration
-        this.token = '06e2db21d289c35e9515e29195c2b659';
-        this.apiSecret = '5ef7d71c38072f2acd22abbb75c65439';
+        this.token = '8181f6333279fdfead274174050a3089';
+        this.apiSecret = '99fe0f39155f7751aa604e339d157ef5';
         this.baseURL = 'https://api.mixpanel.com';
         
         // Simulation configuration
@@ -174,31 +174,28 @@ class ContinuousGrowthSimulator {
                     'token': this.token,
                     'distinct_id': user.user_id, // KEY: Same as user profile
                     'time': Math.floor(eventTime.getTime() / 1000),
-                    
-                    // User identifiers
-                    'user_id': user.user_id,
-                    'device_id': user.device_id,
-                    'username': user.username,
-                    'email': user.email,
-                    'city': user.city,
-                    'country': 'Ethiopia',
-                    
-                    // Device info
-                    'device_model': user.device_model,
-                    'manufacturer': user.manufacturer,
-                    'os_version': user.os_version,
-                    'app_version': user.app_version,
-                    'screen_resolution': user.screen_resolution,
-                    
-                    // Session info
-                    'session_id': `session_${Math.floor(Math.random() * 1000)}`,
-                    'connection_type': ['wifi', 'mobile'][Math.floor(Math.random() * 2)],
-                    'battery_level': `${Math.floor(Math.random() * 100)}%`,
-                    '$insert_id': uniqueDistinctId,
-                    
-                    // Engagement
-                    'user_tenure_days': daysSinceFirstSeen,
-                    'total_user_events': eventCount,
+                    '$time_processed_utc': eventTime,
+                    '$user_id': user.user_id,
+                    '$device_id': user.device_id,
+                    '$username': user.username,
+                    '$email': user.email,
+                    '$city': user.city,
+                    '$country': 'Ethiopia',
+                    '$country_code': 'ET',
+                    '$operating_system': 'Android',
+                    '$insert_id': distinct_id,
+                    '$device_model': user.device_model,
+                    'Manufacturer': user.manufacturer,
+                    '$os_version': user.os_version,
+                    '$app_version': user.app_version,
+                    '$screen_resolution': user.screen_resolution,
+                    '$session_id': `S${Math.floor(Math.random() * 1000000)}`,
+                    '$connection_type': Math.random() > 0.5 ? 'wifi' : 'mobile',
+                    '$battery_level': `${Math.floor(Math.random() * 100)}%`,
+                    '$user_tenure_days': daysSinceFirstSeen,
+                    '$engagement_multiplier': engagementMultiplier.toFixed(2),
+                    '$historical_timestamp': eventTimestamp,
+                    '$original_event_time': eventTime.toISOString(),
                     
                     // Event-specific properties
                     ...this.getEventSpecificProperties(eventName, engagementMultiplier)
