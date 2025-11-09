@@ -5,6 +5,7 @@
   "main": "simulator.js",
   "scripts": {
     "start": "node health.js",
+    "test": "node test.js",
     "simulator": "node simulator.js",
     "historical": "node simulator.js --historical-only",
     "continuous": "node simulator.js --continuous-only",
