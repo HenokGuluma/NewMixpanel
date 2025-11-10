@@ -7,8 +7,8 @@ const { v4: uuidv4 } = require('uuid');
 class ContinuousGrowthSimulator {
     constructor() {
         // Mixpanel configuration
-        this.token = '8181f6333279fdfead274174050a3089';
-        this.apiSecret = '99fe0f39155f7751aa604e339d157ef5';
+        this.token = '86a26f462936d69854cd3dbf2cea25a3';
+        this.apiSecret = 'd59842dd2cf9fc735e2ac6c7ecadcc73';
         this.baseURL = 'https://api.mixpanel.com';
         
         // Simulation configuration
@@ -30,6 +30,7 @@ class ContinuousGrowthSimulator {
         this.userEventCounts = new Map();
         this.userFirstSeen = new Map();
         this.userLastActive = new Map();
+        this.sentUserProfiles = new Set(); // Track which profiles we've sent
         
         // User data arrays
         this.ethiopianFirstNames = [
@@ -84,17 +85,21 @@ class ContinuousGrowthSimulator {
         });
     }
 
-    // CRITICAL: Send user profile with user_id as distinct_id
+    // FIXED: Send user profile with proper error handling
     async sendUserProfile(user) {
+        // Skip if already sent recently
+        if (this.sentUserProfiles.has(user.user_id)) {
+            return true;
+        }
+
         try {
             const userEngagement = this.userEventCounts.get(user.user_id) || { totalEvents: 0 };
             const lastActive = this.userLastActive.get(user.user_id) || user.first_seen;
 
             const engageData = {
                 '$token': this.token,
-                '$distinct_id': user.user_id, // KEY: Same as events
+                '$distinct_id': user.user_id,
                 '$set': {
-                    // Basic info
                     '$username': user.username,
                     '$email': user.email,
                     '$phone': user.phone,
@@ -105,14 +110,12 @@ class ContinuousGrowthSimulator {
                     '$first_name': user.username.split(' ')[0],
                     '$last_name': user.username.split(' ')[1] || '',
                     
-                    // Device info
                     '$device_model': user.device_model,
                     '$manufacturer': user.manufacturer,
                     '$os_version': user.os_version,
                     '$app_version': user.app_version,
                     '$screen_resolution': user.screen_resolution,
                     
-                    // Engagement metrics
                     '$first_seen': Math.floor(user.first_seen.getTime() / 1000),
                     '$last_seen': Math.floor(lastActive.getTime() / 1000),
                     'total_events': userEngagement.totalEvents,
@@ -136,22 +139,24 @@ class ContinuousGrowthSimulator {
                     auth: {
                         username: this.apiSecret,
                         password: ''
-                    }
+                    },
+                    timeout: 10000
                 }
             );
 
             if (response.status === 200) {
+                this.sentUserProfiles.add(user.user_id);
                 console.log(chalk.gray(`   ✅ User profile: ${user.username}`));
                 return true;
             }
             return false;
         } catch (error) {
-            console.log(chalk.red(`User profile error: ${error.message}`));
+            console.log(chalk.red(`   ❌ User profile error for ${user.username}: ${error.message}`));
             return false;
         }
     }
 
-    // CRITICAL: Send event using user_id as distinct_id
+    // FIXED: Send event with proper error handling and missing variable fixes
     async sendEvent(user, eventName, eventTime) {
         try {
             // Track user engagement
@@ -166,15 +171,16 @@ class ContinuousGrowthSimulator {
             
             const daysSinceFirstSeen = Math.floor((eventTime - this.userFirstSeen.get(user.user_id)) / (1000 * 60 * 60 * 24));
             const engagementMultiplier = 1.0 + (daysSinceFirstSeen / 100);
-            const uniqueDistinctId = `${user.user_id}1`;
+            const eventTimestamp = Math.floor(eventTime.getTime() / 1000); // FIXED: Define eventTimestamp
+            const uniqueDistinctId = `${user.user_id}-${uuidv4()}`; // FIXED: Proper unique ID
 
             const eventData = {
                 event: eventName,
                 properties: {
                     'token': this.token,
                     'distinct_id': user.user_id, // KEY: Same as user profile
-                    'time': Math.floor(eventTime.getTime() / 1000),
-                    '$time_processed_utc': eventTime,
+                    'time': eventTimestamp,
+                    '$time_processed_utc': eventTime.toISOString(),
                     '$user_id': user.user_id,
                     '$device_id': user.device_id,
                     '$username': user.username,
@@ -197,7 +203,6 @@ class ContinuousGrowthSimulator {
                     '$historical_timestamp': eventTimestamp,
                     '$original_event_time': eventTime.toISOString(),
                     
-                    // Event-specific properties
                     ...this.getEventSpecificProperties(eventName, engagementMultiplier)
                 }
             };
@@ -206,6 +211,7 @@ class ContinuousGrowthSimulator {
             const isHistorical = eventTime < new Date(new Date().setHours(0, 0, 0, 0));
             
             if (isHistorical) {
+                console.log(chalk.yellow(`   📅 Using Import API for historical event: ${eventName}`));
                 const response = await axios.post(
                     `${this.baseURL}/import`,
                     [eventData],
@@ -214,29 +220,35 @@ class ContinuousGrowthSimulator {
                         auth: {
                             username: this.apiSecret,
                             password: ''
-                        }
+                        },
+                        timeout: 10000
                     }
                 );
                 return response.status === 200;
             } else {
+                console.log(chalk.yellow(`   ⚡ Using Track API for real-time event: ${eventName}`));
                 const response = await axios.post(
                     `${this.baseURL}/track`,
                     eventData,
                     {
-                        params: { verbose: 1, ip: 0 }
+                        params: { verbose: 1, ip: 0 },
+                        timeout: 10000
                     }
                 );
-                return response.status === 200 && (response.data === 1 || response.data.status === 1);
+                return response.status === 200 && (response.data === 1 || (response.data && response.data.status === 1));
             }
         } catch (error) {
-            console.log(chalk.red(`Event error: ${error.message}`));
+            console.log(chalk.red(`   ❌ Event error for ${eventName}: ${error.message}`));
+            if (error.response) {
+                console.log(chalk.red(`     Response: ${JSON.stringify(error.response.data)}`));
+            }
             return false;
         }
     }
 
     // Calculate growth metrics
     calculateGrowthMetrics(targetDate) {
-        const historicalEndDate = new Date('2025-10-31');
+        const historicalEndDate = new Date('2025-11-14');
         const totalHistoricalDays = Math.floor((historicalEndDate - this.historicalStartDate) / (1000 * 60 * 60 * 24));
         const daysSinceStart = Math.floor((targetDate - this.historicalStartDate) / (1000 * 60 * 60 * 24));
         
@@ -461,7 +473,7 @@ class ContinuousGrowthSimulator {
         };
     }
 
-    // Main simulation methods
+    // FIXED: Main simulation method with proper error handling and flow
     async simulateDay(targetDate) {
         const metrics = this.calculateGrowthMetrics(targetDate);
         
@@ -477,7 +489,7 @@ class ContinuousGrowthSimulator {
         }
 
         const usersArray = Array.from(this.users.values());
-        const dailyEvents = metrics.dailyEvents;
+        const dailyEvents = Math.min(metrics.dailyEvents, 1000); // FIXED: Start with smaller number for testing
         
         console.log(chalk.gray(`   Generating ${dailyEvents.toLocaleString()} events...`));
 
@@ -486,17 +498,15 @@ class ContinuousGrowthSimulator {
         let successCount = 0;
         const activeUsersToday = new Set();
 
-        // Send user profiles first
-        console.log(chalk.yellow('   Sending user profiles...'));
-        for (let i = 0; i < Math.min(usersArray.length, 1000); i++) {
-            const user = usersArray[i];
+        // FIXED: Send user profiles for active users first (limited to avoid rate limits)
+        console.log(chalk.yellow('   Preparing user profiles...'));
+        const usersToProcess = usersArray.slice(0, Math.min(usersArray.length, 100));
+        for (const user of usersToProcess) {
             await this.sendUserProfile(user);
-            if (i % 100 === 0) {
-                await this.delay(1000);
-            }
+            await this.delay(500); // Rate limiting
         }
 
-        // Generate and send events
+        // FIXED: Generate and send events with better error handling
         for (let i = 0; i < dailyEvents; i++) {
             const user = usersArray[Math.floor(Math.random() * usersArray.length)];
             const eventName = this.events[Math.floor(Math.random() * this.events.length)];
@@ -508,6 +518,11 @@ class ContinuousGrowthSimulator {
             const eventTime = new Date(targetDate);
             eventTime.setHours(hour, minute, second, 0);
 
+            // Ensure user profile exists
+            if (!this.sentUserProfiles.has(user.user_id)) {
+                await this.sendUserProfile(user);
+            }
+
             const success = await this.sendEvent(user, eventName, eventTime);
             if (success) {
                 successCount++;
@@ -515,20 +530,25 @@ class ContinuousGrowthSimulator {
             }
 
             // Update progress
-            if (i % 100 === 0) {
+            if (i % 10 === 0) {
                 this.progressBar.update(i);
-                await this.delay(100);
             }
+
+            // Rate limiting
+            await this.delay(200);
         }
 
         this.progressBar.stop();
 
         // Final user profile updates
-        console.log(chalk.yellow('   Updating user engagement data...'));
+        console.log(chalk.yellow('   Finalizing user engagement data...'));
+        let profileUpdates = 0;
         for (let userId of activeUsersToday) {
             const user = this.users.get(userId);
-            if (user) {
+            if (user && profileUpdates < 50) { // Limit final updates
                 await this.sendUserProfile(user);
+                profileUpdates++;
+                await this.delay(300);
             }
         }
 
@@ -545,24 +565,31 @@ class ContinuousGrowthSimulator {
             return;
         }
 
-        console.log(chalk.cyan('\n📚 Generating Historical Data (June 04 - October 31, 2025)...'));
+        console.log(chalk.cyan('\n📚 Generating Historical Data (June 04 - November 12, 2025)...'));
         
-        const historicalEndDate = new Date('2025-11-12');
+        const historicalEndDate = new Date('2025-11-14');
         let currentDate = new Date(this.historicalStartDate);
         let totalSent = 0;
 
-        while (currentDate <= historicalEndDate) {
+        // FIXED: Process only a few days for testing
+        const testDays = 7;
+        let daysProcessed = 0;
+        
+        while (currentDate <= historicalEndDate && daysProcessed < testDays) {
+            console.log(chalk.blue(`\n--- Processing day ${daysProcessed + 1} of ${testDays} ---`));
             const sent = await this.simulateDay(currentDate);
             totalSent += sent;
             currentDate.setDate(currentDate.getDate() + 1);
+            daysProcessed++;
             
-            await this.delay(2000);
+            await this.delay(3000); // Longer delay between days
         }
 
         this.historicalDataGenerated = true;
-        console.log(chalk.green(`🎉 Historical data completed!`));
+        console.log(chalk.green(`🎉 Historical data generation completed!`));
         console.log(chalk.green(`   Total events: ${totalSent.toLocaleString()}`));
         console.log(chalk.green(`   Total users: ${this.users.size.toLocaleString()}`));
+        console.log(chalk.yellow(`   Note: Processed ${daysProcessed} days for testing`));
     }
 
     startFutureContinuousMode() {
@@ -594,16 +621,15 @@ class ContinuousGrowthSimulator {
         setInterval(() => {
             if (this.isContinuousMode) {
                 const now = new Date();
-                const metrics = this.calculateGrowthMetrics(now);
-                console.log(chalk.gray(`   💫 Continuous mode active | Users: ${metrics.totalUsers.toLocaleString()} | Next run: 8 AM UTC`));
+                console.log(chalk.gray(`   💫 Continuous mode active | Next run: 8 AM UTC | Total users: ${this.users.size}`));
             }
         }, 60000);
     }
 
     async runCompleteSimulation() {
-        console.log(chalk.cyan('🚀 Starting Complete Simulation'));
-        console.log(chalk.cyan(`   Historical: June 04, 2025 - October 31, 2025`));
-        console.log(chalk.cyan(`   Continuous: November 01, 2025 - Ongoing`));
+        console.log(chalk.cyan('🚀 Starting TEST Simulation'));
+        console.log(chalk.cyan(`   Historical: Limited to 7 days for testing`));
+        console.log(chalk.cyan(`   Continuous: Will start after historical data`));
         
         await this.generateHistoricalData();
         this.startFutureContinuousMode();
@@ -620,20 +646,29 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ 
         status: 'ok', 
-        service: 'Mixpanel Growth Simulator',
-        timestamp: new Date().toISOString()
+        service: 'Mixpanel Growth Simulator - FIXED',
+        timestamp: new Date().toISOString(),
+        message: 'Events and users should now be properly linked!'
     }));
 });
 
-const PORT = 3000/* process.env.PORT || 3001 */;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Health server running on port ${PORT}`);
 });
 
-// Main execution
+// Main execution with better error handling
 async function main() {
-    const simulator = new ContinuousGrowthSimulator();
-    await simulator.runCompleteSimulation();
+    try {
+        console.log(chalk.green('🚀 Starting FIXED Mixpanel Simulator'));
+        console.log(chalk.yellow('   This version fixes the event sending and user linking issues'));
+        
+        const simulator = new ContinuousGrowthSimulator();
+        await simulator.runCompleteSimulation();
+    } catch (error) {
+        console.log(chalk.red('💥 Fatal error:'), error);
+        process.exit(1);
+    }
 }
 
 // Graceful shutdown
