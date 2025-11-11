@@ -575,7 +575,7 @@ class ContinuousGrowthSimulator {
         const testDays = 7;
         let daysProcessed = 0;
         
-        while (currentDate <= historicalEndDate && daysProcessed < testDays) {
+        while (currentDate <= historicalEndDate) {
             console.log(chalk.blue(`\n--- Processing day ${daysProcessed + 1} of ${testDays} ---`));
             const sent = await this.simulateDay(currentDate);
             totalSent += sent;
